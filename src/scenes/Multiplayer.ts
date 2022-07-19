@@ -189,7 +189,7 @@ export default class Multiplayer extends Phaser.Scene {
 					.setOrigin(0.5, 0.5)
 					.setDepth(1000)
 
-				const projectilePool = this.add.projectilePool()
+				const projectilePool = gameScene.add.projectilePool()
 				this.otherShip[`${data.id}`].setProjectileModule(
 					new ProjectileModule(projectilePool, data.texture.laser.key)
 				)
