@@ -21,33 +21,8 @@ export default class TitleScreen extends Phaser.Scene {
 	}
 
 	async create() {
-		const width = this.scale.width
-		const height = this.scale.height
-		const x = width * 0.5
-
-		const y = height * 0.7
-
-		const playButton = this.add.dom(x, height + 50, PlayButton)
-		playButton.addListener('click').on('click', () => {
-			this.scene.start(SceneKeys.Preload)
-		})
-
-		const timeline = this.tweens.createTimeline()
-
-		// https://github.com/photonstorm/phaser/blob/v3.22.0/src/math/easing/EaseMap.js
-
-
-		timeline.add({
-			targets: playButton,
-			y,
-			ease: 'Quad.easeOut',
-			duration: 400,
-			offset: 350
-		})
-
-		timeline.play()
-
 		await this.displayWeb3Modal()
+		this.scene.start(SceneKeys.Preload)
 	}
 
 	private initWeb3(provider: any) {

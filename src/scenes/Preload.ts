@@ -2,6 +2,7 @@ import Phaser, { Scene } from 'phaser'
 
 import { SceneKeys } from '~/consts/SceneKeys'
 import { TextureKeys } from '~/consts/GameKeys'
+import skins from '../data/skins.json'
 
 import "regenerator-runtime/runtime";
 import '~/game/AsteroidPool'
@@ -31,48 +32,19 @@ export default class Preload extends Phaser.Scene {
 	}
 
 	async create() {
-		let LASER_PATH = `${process.env.IPFS_BASE_PATH}/bafybeia5qixe25zdpwc5s6bbbu3czrib7h4loxm4ofvfhlubc7hvlb4q3u/2.json`
-		let SHIP_PATH = `${process.env.IPFS_BASE_PATH}/bafybeihgomolp7vzmrfh35pmbknp6fycqc354smiookys3mtadmhdtrlje/1.json`
-
-		let ship: any = await fetch(`${SHIP_PATH}`)
-		let laser: any = await fetch(`${LASER_PATH}`)
-
-		ship = await ship.json()
-		laser = await laser.json()
-
-		let shipImage = ship.image.split('//')
-		let laserImage = laser.image.split('//')
-
-		let skins = [
-			{
-				laser: 'bafybeibnbvbswbwoeivs5ejmxqcj5g54alibgtzzydgvhqtmmu7le2vlre/DOSA1-laser-blue-OG-0001.png',
-				ship: 'bafybeifft6ugdvzhnbnaqwphhoxirzpoqbzgkpylajd4f3nhy7mualvs3y/DOSA1-ship-blue-OG-0001.png'
-			},
-			{
-				laser: 'bafybeifsu2lrwyplmxpdafskgvp4lafmnkuj3ggde2q2vf5qjpbiu5ryka/DOSA1-laser-red-0002.png',
-				ship: 'bafybeiddaltniuodlvytiz32i7mm2lg4mf2lk22vig3qmnjmtnenwewf2m/DOSA1-ship-red-0002.png'
-			},
-			{
-				laser: 'bafybeiew33rtxfiyjiy7xuom65pdpqkp4ecbklsu2efarhszutm64mbkr4/DOSA1-laser-yellow-0003.png',
-				ship: 'bafybeifft6ugdvzhnbnaqwphhoxirzpoqbzgkpylajd4f3nhy7mualvs3y/DOSA1-ship-blue-OG-0001.png'
-			},
-			{
-				laser: 'bafybeibyw2llpv63jajerhykovohevxqpp4vgvymglmxmqw3yylvtshbfy/DOSA1-laser-blue-0004.png',
-				ship: 'bafybeifvcql7y3mwo7yevh734b3655c6bbddcnres64ntxqb5e5rrcqwru/DOSA1-ship-yellowgreen-0003.png'
-			}]
-
-		let selectedSkin = skins[Math.floor(Math.random() * skins.length)]
-
-		let lkey = selectedSkin.laser.split('/')
-		let skey = selectedSkin.ship.split('/')
-
-		this.ship = { key: skey[1], path: `${process.env.IPFS_BASE_PATH}/${selectedSkin.ship}` }
-		this.laser = { key: lkey[1], path: `${process.env.IPFS_BASE_PATH}/${selectedSkin.laser}` }
-
 		let assets: { images: any } = { images: [] }
-		let images = [this.ship, this.laser]
 
-		assets.images = images
+		for (const skin of skins) {
+			let laserKey = skin.laser.split('/')[1]
+			let shipKey = skin.ship.split('/')[1]
+
+			laserKey = laserKey.split('.')[0]
+			shipKey = shipKey.split('.')[0]
+
+			assets.images.push({ key: laserKey, path: `${process.env.IPFS_BASE_PATH}/${skin.laser}` })
+			assets.images.push({ key: shipKey, path: `${process.env.IPFS_BASE_PATH}/${skin.ship}` })
+		}
+
 		this.loadAssets(assets)
 	}
 
@@ -85,14 +57,49 @@ export default class Preload extends Phaser.Scene {
 			}
 
 			loader.once(Phaser.Loader.Events.COMPLETE, () => {
-				this.scene.start(SceneKeys.Multiplayer)
-				this.scene.start(SceneKeys.Game)
+				this.buildShipSelectionUI()
 				resolve(assets);
 			});
 			loader.start();
 		});
 	}
 
+	private buildShipSelectionUI() {
+		let container = this.add.container(this.scale.width / 2, this.scale.height * .5)
+
+		let style = {
+			color: 'black',
+			backgroundColor: '#FFECD1',
+			fixedWidth: 300
+		}
+
+		let yStep = -100
+
+		for (const skin of skins) {
+			let laserKey = skin.laser.split('/')[1]
+			let shipKey = skin.ship.split('/')[1]
+			laserKey = laserKey.split('.')[0]
+			shipKey = shipKey.split('.')[0]
+
+			let text = this.add.text(-100, yStep, `${skin.name}`, style)
+				.setPadding(24, 12)
+				.setOrigin(0, 0)
+				.setInteractive({ cursor: 'pointer' })
+				.on('pointerdown', () => {
+
+					this.ship = { key: shipKey, path: `${process.env.IPFS_BASE_PATH}/${skin.ship}` }
+					this.laser = { key: laserKey, path: `${process.env.IPFS_BASE_PATH}/${skin.laser}` }
+
+					this.scene.start(SceneKeys.Multiplayer)
+					this.scene.start(SceneKeys.Game)
+				})
+
+			let ship = this.add.sprite(text.x - 100, text.y, `${shipKey}`).setOrigin(0, 0.3)
+			container.add(text)
+			container.add(ship)
+			yStep += 50
+		}
+	}
 	get texture() {
 		return { ship: this.ship, laser: this.laser }
 	}
