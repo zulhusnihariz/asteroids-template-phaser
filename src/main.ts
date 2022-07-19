@@ -3,6 +3,16 @@ import Phaser from 'phaser'
 import { SceneKeys } from './consts/SceneKeys'
 import registerScenes from './registerScenes'
 
+
+declare global {
+	// tslint:disable-next-line
+	interface Window {
+		ethereum: any;
+		web3: any;
+	}
+}
+
+
 const config = {
 	type: Phaser.AUTO,
 	parent: 'phaser-container',

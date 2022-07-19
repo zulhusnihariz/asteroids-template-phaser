@@ -3,11 +3,11 @@ import ProjectileModule from './ProjectileModule'
 
 import throttle from '~/decorators/throttle'
 import IProjectile from '~/types/IProjectile'
+import { SceneKeys } from '~/consts/SceneKeys'
+import Multiplayer from '~/scenes/Multiplayer'
 
-declare global
-{
-	interface IPlayerShip extends Phaser.Physics.Arcade.Sprite
-	{
+declare global {
+	interface IPlayerShip extends Phaser.Physics.Arcade.Sprite {
 		configure(config: IPlayerShipConfig): IPlayerShip
 		useCircleCollider(radius?: number, offsetX?: number, offsetY?: number): IPlayerShip
 		useSquareCollider(width: number): IPlayerShip
@@ -16,13 +16,13 @@ declare global
 		setProjectileModule(laserModule: ProjectileModule): void
 
 		fire(): IProjectile | null
+		throttledFire(): void
 
 		update(dt: number): void
 	}
 }
 
-export interface IPlayerShipConfig
-{
+export interface IPlayerShipConfig {
 	acceleration?: number
 	turnSpeed?: number
 	colliderRadius?: number
@@ -34,8 +34,7 @@ const DefaultTurnSpeed = 2
 const DefaultColliderRadius = 50
 const DefaultDrag = 0.995
 
-export default class PlayerShip extends Phaser.Physics.Arcade.Sprite implements IPlayerShip
-{
+export default class PlayerShip extends Phaser.Physics.Arcade.Sprite implements IPlayerShip {
 	private cursorKeys: Phaser.Types.Input.Keyboard.CursorKeys
 	private fireKey: Phaser.Input.Keyboard.Key
 
@@ -45,16 +44,14 @@ export default class PlayerShip extends Phaser.Physics.Arcade.Sprite implements 
 
 	private projectileModule?: ProjectileModule
 
-	constructor(scene: Phaser.Scene, x: number, y: number, texture: string)
-	{
+	constructor(scene: Phaser.Scene, x: number, y: number, texture: string) {
 		super(scene, x, y, texture)
 
 		this.cursorKeys = scene.input.keyboard.createCursorKeys()
 		this.fireKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
 	}
 
-	configure(config: IPlayerShipConfig)
-	{
+	configure(config: IPlayerShipConfig) {
 		this.turnSpeed = config.turnSpeed || DefaultTurnSpeed
 		this.acceleration = config.acceleration || DefaultAcceleration
 		this.colliderRadius = config.colliderRadius || DefaultColliderRadius
@@ -66,40 +63,34 @@ export default class PlayerShip extends Phaser.Physics.Arcade.Sprite implements 
 		return this
 	}
 
-	useCircleCollider(radius: number | undefined, offsetX = 0, offsetY = 0)
-	{
+	useCircleCollider(radius: number | undefined, offsetX = 0, offsetY = 0) {
 		const r = radius || this.colliderRadius
 		this.body.setCircle(r, offsetX, offsetY)
 
 		return this
 	}
 
-	useSquareCollider(width: number)
-	{
+	useSquareCollider(width: number) {
 		this.body.setSize(width, width)
 
 		return this
 	}
 
-	useScaledCollider(scaleFactor: number)
-	{
+	useScaledCollider(scaleFactor: number) {
 		const w = this.width * scaleFactor
 		const h = this.height * scaleFactor
 
 		this.body.setSize(w, h)
-		
+
 		return this
 	}
 
-	setProjectileModule(projectileModule: ProjectileModule)
-	{
+	setProjectileModule(projectileModule: ProjectileModule) {
 		this.projectileModule = projectileModule
 	}
 
-	fire(): IProjectile | null
-	{
-		if (!this.projectileModule)
-		{
+	fire(): IProjectile | null {
+		if (!this.projectileModule) {
 			return null
 		}
 
@@ -113,8 +104,7 @@ export default class PlayerShip extends Phaser.Physics.Arcade.Sprite implements 
 		)
 
 		const len = this.body.velocity.length()
-		if (len)
-		{
+		if (len) {
 			const v = laser.physicsBody.velocity.clone().normalize()
 			v.x *= len
 			v.y *= len
@@ -125,20 +115,22 @@ export default class PlayerShip extends Phaser.Physics.Arcade.Sprite implements 
 		return laser
 	}
 
-	update(dt: number)
-	{
+	update(dt: number) {
+
+		let multiplayerScene = this.scene.scene.get(SceneKeys.Multiplayer) as Multiplayer
 		const angle = this.angle
-		if (this.cursorKeys.left?.isDown)
-		{
+
+
+
+		if (this.cursorKeys.left?.isDown) {
+
 			this.setAngle(angle - this.turnSpeed)
 		}
-		else if (this.cursorKeys.right?.isDown)
-		{
+		else if (this.cursorKeys.right?.isDown) {
 			this.setAngle(angle + this.turnSpeed)
 		}
 
-		if (this.cursorKeys.up?.isDown)
-		{
+		if (this.cursorKeys.up?.isDown) {
 			const dir = this.scene.physics.velocityFromRotation(this.rotation, 1)
 			const vel = this.body.velocity
 
@@ -148,15 +140,25 @@ export default class PlayerShip extends Phaser.Physics.Arcade.Sprite implements 
 			this.setVelocity(vel.x, vel.y)
 		}
 
-		if (this.fireKey.isDown)
-		{
+		if (this.fireKey.isDown) {
 			this.throttledFire()
 		}
+
+		multiplayerScene.broadcast({
+			event: 'UPDATE_MOVEMENT',
+			id: multiplayerScene.id,
+			movement: {
+				angle,
+				left: this.cursorKeys.left?.isDown,
+				right: this.cursorKeys.right?.isDown,
+				up: this.cursorKeys.up?.isDown,
+				fireKey: this.fireKey.isDown
+			}
+		})
 	}
 
 	@throttle(150, { leading: true, trailing: false })
-	private throttledFire()
-	{
+	throttledFire() {
 		this.fire()
 	}
 }
