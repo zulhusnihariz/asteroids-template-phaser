@@ -2,17 +2,48 @@ import Phaser, { Scene } from 'phaser'
 
 import { SceneKeys } from '~/consts/SceneKeys'
 import { TextureKeys } from '~/consts/GameKeys'
-import skins from '../data/skins.json'
+import localskins from '../data/skins.json'
 
 import "regenerator-runtime/runtime";
 import '~/game/AsteroidPool'
 import '~/game/PlayerShip'
 import '~/game/ProjectilePool'
 
+interface Nft {
+	amount: string
+	block_number: string
+	block_number_minted: string
+	contract_type: string
+	last_metadata_sync: string
+	last_token_uri_sync: string
+	metadata: string
+	name: string
+	owner_of: string
+	symbol: string
+	token_address: string
+	token_hash: string
+	token_id: string
+	token_uri: string
+	updated_at: string
+}
+
+interface Skin {
+	attributes: { trait_type: string, value: string }[]
+	description: string
+	external_url: string
+	image: string
+	name: string
+}
+
+let TEXT_BACKGROUND_COLOR = '#ffecd1'
+let SELECTED_TEXT_BACKGROUND_COLOR = '#60ab9a'
 export default class Preload extends Phaser.Scene {
 
-	private ship: { key: string, path: string }
-	private laser: { key: string, path: string }
+	private nfts: Nft[]
+	private ship: { key: string, path: string } | null
+	private laser: { key: string, path: string } | null
+
+	private container: Phaser.GameObjects.Container
 
 	async preload() {
 		this.load.setPath('assets/game/')
@@ -32,23 +63,63 @@ export default class Preload extends Phaser.Scene {
 	}
 
 	async create() {
-		let assets: { images: any } = { images: [] }
+		let assets: { images: { key: string; path: string }[] } = { images: [] }
 
-		for (const skin of skins) {
-			let laserKey = skin.laser.split('/')[1]
-			let shipKey = skin.ship.split('/')[1]
+		this.ship = null
+		this.laser = null
 
-			laserKey = laserKey.split('.')[0]
-			shipKey = shipKey.split('.')[0]
+		this.nfts = await this.GetShipSkins()
 
-			assets.images.push({ key: laserKey, path: `${process.env.IPFS_BASE_PATH}/${skin.laser}` })
-			assets.images.push({ key: shipKey, path: `${process.env.IPFS_BASE_PATH}/${skin.ship}` })
+		for (const nft of this.nfts) {
+			let skin: Skin = JSON.parse(nft.metadata)
+
+			let path = skin.image.split('//')[1]
+			let key = path.split('/')[1]
+			key = key.split('.')[0]
+
+			assets.images.push({ key: key, path: `${process.env.IPFS_BASE_PATH}/${path}` })
 		}
 
 		this.loadAssets(assets)
 	}
 
-	loadAssets(assets: any) {
+	private async GetShipSkins() {
+		let accs = await window.web3.eth.getAccounts();
+
+		// accs = ['0x244584678E6AE4363c8561e5f58Bd4938eD7c10D']
+
+		let list = await fetch(`https://deep-index.moralis.io/api/v2/${accs[0]}/nft?chain=mumbai&format=decimal`, {
+			headers: {
+				'Content-Type': 'application/json',
+				'X-API-Key': 'yF2EqHpOWCYHgZgwF3nb7TTCOs0inQ7ACAdbZTyukQdxHDtIBwf8MdIoUMGh7CdL'
+			},
+		})
+
+		let data = await list.json()
+
+		// default ship if no skins
+		if (data.result.length === 0) {
+
+			let local: any[] = []
+
+			for (let skin of localskins) {
+				let laser = JSON.stringify({ image: skin.laser })
+				let ship = JSON.stringify({ image: skin.ship })
+
+				local.push({ metadata: ship })
+				local.push({ metadata: laser })
+				console.log('localskins', skin);
+			}
+
+			return local
+		}
+
+		return data.result.filter(skin => {
+			return skin.metadata
+		})
+	}
+
+	private loadAssets(assets: any) {
 		new Promise((resolve) => {
 			let loader = new Phaser.Loader.LoaderPlugin(this);
 
@@ -57,49 +128,89 @@ export default class Preload extends Phaser.Scene {
 			}
 
 			loader.once(Phaser.Loader.Events.COMPLETE, () => {
-				this.buildShipSelectionUI()
+				this.buildShipSelectionUI(assets)
 				resolve(assets);
 			});
 			loader.start();
 		});
 	}
 
-	private buildShipSelectionUI() {
-		let container = this.add.container(this.scale.width / 2, this.scale.height * .5)
+	private buildShipSelectionUI(assets: any) {
+		if (this.container) this.container.destroy()
+		this.container = this.add.container(this.scale.width / 2, this.scale.height * .5)
+
+		let xShip = -300
+		let yShip = -100
+
+		let xLaser = 150
+		let yLaser = -100
+
+		let ships = this.add.group()
+		let lasers = this.add.group()
 
 		let style = {
 			color: 'black',
-			backgroundColor: '#FFECD1',
+			backgroundColor: TEXT_BACKGROUND_COLOR,
 			fixedWidth: 300
 		}
 
-		let yStep = -100
+		for (const skin of assets.images) {
+			let key = skin.key
+			let isShip = key.includes('ship')
 
-		for (const skin of skins) {
-			let laserKey = skin.laser.split('/')[1]
-			let shipKey = skin.ship.split('/')[1]
-			laserKey = laserKey.split('.')[0]
-			shipKey = shipKey.split('.')[0]
+			let config = isShip ?
+				{ xStep: xShip, yStep: yShip, spriteXOrigin: 0, spriteYOrigin: 0.3 } :
+				{ xStep: xLaser, yStep: yLaser, spriteXOrigin: 0, spriteYOrigin: -0.7 }
 
-			let text = this.add.text(-100, yStep, `${skin.name}`, style)
+			let text = this.add.text(config.xStep, config.yStep, `${skin.key}`, style)
+				//@ts-ignore
 				.setPadding(24, 12)
 				.setOrigin(0, 0)
 				.setInteractive({ cursor: 'pointer' })
 				.on('pointerdown', () => {
 
-					this.ship = { key: shipKey, path: `${process.env.IPFS_BASE_PATH}/${skin.ship}` }
-					this.laser = { key: laserKey, path: `${process.env.IPFS_BASE_PATH}/${skin.laser}` }
+					if (isShip) {
+						this.resetTextBackgroundColor(ships)
+						this.ship = { key: key, path: `${process.env.IPFS_BASE_PATH}/${skin.path}` }
+					} else {
+						this.resetTextBackgroundColor(lasers)
+						this.laser = { key: key, path: `${process.env.IPFS_BASE_PATH}/${skin.path}` }
+					}
 
-					this.scene.start(SceneKeys.Multiplayer)
-					this.scene.start(SceneKeys.Game)
+					text.setBackgroundColor(SELECTED_TEXT_BACKGROUND_COLOR)
+
+					const isBothSelected = this.ship && this.laser
+
+					if (isBothSelected) {
+						this.scene.start(SceneKeys.Multiplayer)
+						this.scene.start(SceneKeys.Game)
+					}
 				})
 
-			let ship = this.add.sprite(text.x - 100, text.y, `${shipKey}`).setOrigin(0, 0.3)
-			container.add(text)
-			container.add(ship)
-			yStep += 50
+
+			if (isShip) {
+				ships.add(text)
+				yShip += 50
+			} else {
+				lasers.add(text)
+				yLaser += 50
+			}
+
+			let sprite = this.add.sprite(text.x - 100, text.y, `${key}`)
+				.setOrigin(config.spriteXOrigin, config.spriteYOrigin)
+
+			this.container.add(text)
+			this.container.add(sprite)
 		}
 	}
+
+	private resetTextBackgroundColor(group: Phaser.GameObjects.Group) {
+		group.children.iterate(el => {
+			let text = el as Phaser.GameObjects.Text
+			text.setBackgroundColor(TEXT_BACKGROUND_COLOR)
+		})
+	}
+
 	get texture() {
 		return { ship: this.ship, laser: this.laser }
 	}
