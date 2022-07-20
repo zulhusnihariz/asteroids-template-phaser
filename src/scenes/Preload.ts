@@ -8,6 +8,10 @@ import "regenerator-runtime/runtime";
 import '~/game/AsteroidPool'
 import '~/game/PlayerShip'
 import '~/game/ProjectilePool'
+import Web3 from 'web3';
+import { loadSmartContract } from '~/utils/smart-contract.util';
+import CONTRACT_ABI from '../data/contract-abi.json'
+import CashOutInputField from '~/UI/CashOutInputField'
 
 interface Nft {
 	amount: string
@@ -44,6 +48,7 @@ export default class Preload extends Phaser.Scene {
 	private laser: { key: string, path: string } | null
 
 	private container: Phaser.GameObjects.Container
+	private contract: any
 
 	async preload() {
 		this.load.setPath('assets/game/')
@@ -63,6 +68,8 @@ export default class Preload extends Phaser.Scene {
 	}
 
 	async create() {
+		this.contract = await loadSmartContract(CONTRACT_ABI, process.env.CONTRACT_ADDRESS)
+
 		let assets: { images: { key: string; path: string }[] } = { images: [] }
 
 		this.ship = null
@@ -136,9 +143,7 @@ export default class Preload extends Phaser.Scene {
 	}
 
 	private buildShipSelectionUI(assets: any) {
-		if (this.container) this.container.destroy()
-		this.container = this.add.container(this.scale.width / 2, this.scale.height * .5)
-
+		this.buildButtons()
 		let xShip = -300
 		let yShip = -100
 
@@ -209,6 +214,71 @@ export default class Preload extends Phaser.Scene {
 			let text = el as Phaser.GameObjects.Text
 			text.setBackgroundColor(TEXT_BACKGROUND_COLOR)
 		})
+	}
+
+	private buildButtons() {
+		if (this.container) this.container.destroy()
+		this.container = this.add.container(this.scale.width / 2, this.scale.height * .5)
+
+		let buttons = [
+			{
+				label: 'Mint New Rocket', callback: async () => {
+					console.log('mint button clicked');
+					await this.contract.methods.mint()
+				}
+			},
+			{
+				label: 'Change Equipment', callback: () => {
+					console.log('change equipment button clicked');
+				}
+			},
+			{
+				label: 'Cashout', callback: async () => {
+					console.log('cashout button clicked');
+					let input = document.getElementById('cash-out-input') as HTMLInputElement
+					let isEmpty = input.value.length === 0
+					if (isEmpty) return
+
+					await this.contract.methods.cashOut(input.value)
+				}
+			}]
+
+		let style = {
+			color: 'black',
+			backgroundColor: TEXT_BACKGROUND_COLOR,
+			fixedWidth: 200
+		}
+
+		let xStep = -180
+
+		for (let button of buttons) {
+			if (button.label === 'Cashout') {
+				let cashOutInputField = this.add.dom(xStep, -250, CashOutInputField())
+				this.container.add(cashOutInputField)
+			}
+
+			let text = this.add.text(xStep, -200, `${button.label}`, style)
+				//@ts-ignore
+				.setPadding(6, 12)
+				.setOrigin(0.5, 0.5)
+				.setInteractive({ cursor: 'pointer' })
+				.on('pointerover', () => {
+					text.style.backgroundColor === TEXT_BACKGROUND_COLOR ?
+						text.setBackgroundColor(SELECTED_TEXT_BACKGROUND_COLOR) :
+						text.setBackgroundColor(TEXT_BACKGROUND_COLOR)
+				})
+				.on('pointerout', () => {
+					text.style.backgroundColor === TEXT_BACKGROUND_COLOR ?
+						text.setBackgroundColor(SELECTED_TEXT_BACKGROUND_COLOR) :
+						text.setBackgroundColor(TEXT_BACKGROUND_COLOR)
+				})
+				.on('pointerdown', () => {
+					button.callback()
+				})
+
+			xStep += 270
+			this.container.add(text)
+		}
 	}
 
 	get texture() {
