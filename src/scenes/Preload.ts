@@ -115,7 +115,6 @@ export default class Preload extends Phaser.Scene {
 
 				local.push({ metadata: ship })
 				local.push({ metadata: laser })
-				console.log('localskins', skin);
 			}
 
 			return local
