@@ -71,7 +71,7 @@ export default class GameUI extends Phaser.Scene {
 		try {
 			let data = JSON.stringify({
 				"asset_id": "c9ed1346a1549bdf946c1b369f4a3801bbbe2e367db8c228bcf5dd452791ca9d",
-				"kill": 500
+				"kill": 100
 			})
 
 			let list = await fetch(`http://3.110.115.64/dosa/point`, {
